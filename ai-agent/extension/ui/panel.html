@@ -30,6 +30,7 @@
           <button class="tab active" data-tab="chat">Chat</button>
           <button class="tab" data-tab="plan">Plan</button>
           <button class="tab" data-tab="diff">Diff</button>
+          <button class="tab" data-tab="approvals">Approvals <span id="approval-badge" class="badge hidden">0</span></button>
         </div>
         <div class="pane" id="pane-chat">
           <div id="chat-log" class="chat-log"></div>
@@ -50,6 +51,18 @@
             <button id="diff-reject" class="danger">Reject</button>
           </div>
           <div id="diff-view"></div>
+        </div>
+        <div class="pane hidden" id="pane-approvals">
+          <div class="approvals-header">
+            <span>Pending approvals</span>
+            <label class="auto-approve-toggle">
+              <input type="checkbox" id="auto-approve" />
+              Auto-approve all (use with care)
+            </label>
+          </div>
+          <div id="approvals-list" class="approvals-list">
+            <div class="empty">No pending approvals.</div>
+          </div>
         </div>
       </section>
 

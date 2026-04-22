@@ -10,6 +10,8 @@ let CURRENT_PLAN = null;
 let CURRENT_DIFF = { path: "", oldText: "", newText: "", mode: "unified" };
 
 const FILTERS = { DEBUG: false, INFO: true, WARN: true, ERROR: true };
+const APPROVALS = new Map(); // id -> { kind, step, path, oldContent, newContent, cmd }
+let AUTO_APPROVE = false;
 
 async function loadConfig() {
   CONFIG = await fetch(chrome.runtime.getURL("config.json")).then((r) => r.json());
@@ -133,6 +135,79 @@ $("diff-approve").onclick = async () => {
 };
 $("diff-reject").onclick = () => appendChat("Rejected diff for " + CURRENT_DIFF.path, "system");
 
+// ---------- Approval queue ----------
+function updateApprovalBadge() {
+  const n = APPROVALS.size;
+  const badge = $("approval-badge");
+  badge.textContent = String(n);
+  badge.classList.toggle("hidden", n === 0);
+}
+
+function escapeHTML(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderApprovals() {
+  const list = $("approvals-list");
+  list.innerHTML = "";
+  if (APPROVALS.size === 0) {
+    list.innerHTML = '<div class="empty">No pending approvals.</div>';
+    updateApprovalBadge();
+    return;
+  }
+  for (const [id, a] of APPROVALS) {
+    const card = document.createElement("div");
+    card.className = "approval-card " + a.kind;
+    let body = "";
+    if (a.kind === "write_file") {
+      const diffHTML = renderUnifiedHTML(a.oldContent || "", a.newContent || "", a.path);
+      body = `<div class="ap-meta"><b>Write file</b> <code>${escapeHTML(a.path)}</code></div>
+              <div class="ap-diff">${diffHTML}</div>`;
+    } else if (a.kind === "execute_command") {
+      body = `<div class="ap-meta"><b>Execute command</b></div>
+              <pre class="ap-cmd">$ ${escapeHTML(a.cmd)}</pre>`;
+    }
+    card.innerHTML = `
+      <div class="ap-body">${body}</div>
+      <div class="ap-actions">
+        <button class="primary" data-act="approve">Approve</button>
+        <button class="danger" data-act="reject">Reject</button>
+      </div>`;
+    card.querySelector('[data-act="approve"]').onclick = () => respondApproval(id, "approve");
+    card.querySelector('[data-act="reject"]').onclick = () => respondApproval(id, "reject");
+    list.appendChild(card);
+  }
+  updateApprovalBadge();
+}
+
+function respondApproval(id, decision) {
+  chrome.runtime.sendMessage({ type: "AGENT_APPROVAL_RESPONSE", id, decision }).catch(() => {});
+  APPROVALS.delete(id);
+  renderApprovals();
+  appendChat(`${decision === "approve" ? "Approved" : "Rejected"} ${id}`, "system");
+}
+
+function addApproval(payload) {
+  APPROVALS.set(payload.id, payload);
+  renderApprovals();
+  appendChat(
+    payload.kind === "write_file"
+      ? `Approval needed: write_file ${payload.path}`
+      : `Approval needed: execute_command "${payload.cmd}"`,
+    "system",
+  );
+  // Auto-flip to approvals tab on first one if no other approvals were pending
+  if (APPROVALS.size === 1) switchTab("approvals");
+  if (AUTO_APPROVE) respondApproval(payload.id, "approve");
+}
+
+$("auto-approve").addEventListener("change", (e) => {
+  AUTO_APPROVE = e.target.checked;
+  if (AUTO_APPROVE) {
+    for (const id of Array.from(APPROVALS.keys())) respondApproval(id, "approve");
+  }
+});
+
 $("chat-send").onclick = async () => {
   const text = $("chat-text").value.trim();
   if (!text) return;
@@ -165,6 +240,8 @@ chrome.runtime.onMessage.addListener((msg) => {
   else if (type === "command_output") appendLog({ timestamp: Date.now(), level: "INFO", source: "cmd", message: payload.line });
   else if (type === "command_started") appendChat("$ " + payload.cmd, "system");
   else if (type === "command_finished") appendChat("(exit " + payload.code + ")", "system");
+  else if (type === "approval_request") addApproval(payload);
+  else if (type === "approval_resolved") { APPROVALS.delete(payload.id); renderApprovals(); }
   else if (type === "file_external_update") appendLog({ timestamp: Date.now(), level: "INFO", source: "watcher", message: `${payload.event}: ${payload.path}` });
   else if (type === "file_written") refreshFiles($("cwd").textContent.replace(/^\//, "").replace(/\/$/, ""));
   else if (type === "test_result") appendLog({ timestamp: Date.now(), level: payload.ok ? "INFO" : "ERROR", source: "tests", message: `tests ${payload.ok ? "passed" : "failed"} (code ${payload.code})` });

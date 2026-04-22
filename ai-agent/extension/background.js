@@ -194,18 +194,73 @@ async function planGoal(goal) {
   return extractJSON(text);
 }
 
+// ------- Approval queue -------
+const PENDING_APPROVALS = new Map(); // id -> { resolve }
+
+function requestApproval(kind, step, extras = {}) {
+  const id = "ap_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+  const payload = { id, kind, step, ...extras };
+  broadcast("approval_request", payload);
+  return new Promise((resolve) => {
+    PENDING_APPROVALS.set(id, { resolve });
+  });
+}
+
+function resolveApproval(id, decision) {
+  const entry = PENDING_APPROVALS.get(id);
+  if (!entry) return false;
+  entry.resolve(decision === "approve");
+  PENDING_APPROVALS.delete(id);
+  broadcast("approval_resolved", { id, decision });
+  return true;
+}
+
+async function gateWriteFile(step) {
+  if (!CONFIG.approval || !CONFIG.approval.requireForWrites) return true;
+  let oldContent = "";
+  try {
+    const r = await api("/read_file", { path: step.path });
+    oldContent = r.content || "";
+  } catch {
+    oldContent = ""; // file does not exist yet
+  }
+  const ok = await requestApproval("write_file", step, {
+    path: step.path,
+    oldContent,
+    newContent: step.content || "",
+  });
+  return ok;
+}
+
+async function gateExecuteCommand(step) {
+  if (!CONFIG.approval || !CONFIG.approval.requireForCommands) return true;
+  return requestApproval("execute_command", step, { cmd: step.cmd });
+}
+
 async function executeStep(step) {
   const action = step.action;
   switch (action) {
     case "read_file":
       return api("/read_file", { path: step.path });
-    case "write_file":
+    case "write_file": {
+      const ok = await gateWriteFile(step);
+      if (!ok) {
+        broadcast("log", { source: "approval", level: "WARN", message: `write_file ${step.path} rejected by user` });
+        return { ok: false, rejected: true, path: step.path };
+      }
       return api("/write_file", { path: step.path, content: step.content || "" });
+    }
     case "list_files":
       return api("/list_files", { path: step.path || "" });
     case "execute_command":
-    case "install_package":
+    case "install_package": {
+      const ok = await gateExecuteCommand(step);
+      if (!ok) {
+        broadcast("log", { source: "approval", level: "WARN", message: `command rejected by user: ${step.cmd}` });
+        return { ok: false, rejected: true, cmd: step.cmd };
+      }
       return api("/execute", { cmd: step.cmd, timeout: 120 });
+    }
     case "run_tests":
       return api("/run_tests", {});
     case "git_commit":
@@ -339,6 +394,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: true });
     } else if (msg.type === "AGENT_GET_STATE") {
       sendResponse({ state: STATE });
+    } else if (msg.type === "AGENT_APPROVAL_RESPONSE") {
+      const ok = resolveApproval(msg.id, msg.decision);
+      sendResponse({ ok });
+    } else if (msg.type === "AGENT_LIST_APPROVALS") {
+      sendResponse({ ids: Array.from(PENDING_APPROVALS.keys()) });
     } else if (msg.type === "AGENT_RUN_PROMPT") {
       try {
         const out = await routedPrompt(msg.taskKind || "coding", msg.prompt);

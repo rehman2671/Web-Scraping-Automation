@@ -86,6 +86,22 @@ h3 { margin: 6px 0; font-size: 12px; text-transform: uppercase; color: var(--mut
 .diff.side tr.diff td.old { background: rgba(255, 93, 108, 0.12); }
 .diff.side tr.diff td.new { background: rgba(80, 200, 120, 0.14); }
 
+.badge { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 4px; border-radius: 9px; background: var(--err); color: #fff; font-size: 10px; font-weight: 600; text-align: center; }
+.badge.hidden { display: none; }
+
+.approvals-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.auto-approve-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.approvals-list { display: flex; flex-direction: column; gap: 10px; overflow: auto; flex: 1; }
+.approvals-list .empty { color: var(--muted); font-style: italic; padding: 20px; text-align: center; }
+.approval-card { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); padding: 10px; }
+.approval-card.write_file { border-left: 3px solid var(--accent); }
+.approval-card.execute_command { border-left: 3px solid var(--warn); }
+.ap-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.ap-meta code { color: var(--text); background: var(--panel2); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; }
+.ap-cmd { background: var(--panel2); padding: 8px; border-radius: 4px; margin: 0; font-family: ui-monospace, monospace; font-size: 12px; color: var(--warn); white-space: pre-wrap; word-break: break-all; }
+.ap-diff { max-height: 320px; overflow: auto; background: var(--panel2); border-radius: 4px; padding: 4px; }
+.ap-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+
 .log-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; font-size: 11px; color: var(--muted); }
 #log-view { font-family: ui-monospace, monospace; font-size: 11px; max-height: 50%; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
 .log-row { padding: 1px 0; }
