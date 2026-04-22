@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "AI Autonomous Coding Agent",
+  "version": "1.0.0",
+  "description": "Browser-based multi-AI autonomous coding agent (no API mode). Bridges ChatGPT/DeepSeek/Qwen/Gemini web UIs with a local FastAPI backend.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "webNavigation",
+    "clipboardRead",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://chat.deepseek.com/*",
+    "https://gemini.google.com/*",
+    "https://chat.qwen.ai/*",
+    "http://localhost:8765/*",
+    "ws://localhost:8765/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Coding Agent"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://chat.deepseek.com/*",
+        "https://gemini.google.com/*",
+        "https://chat.qwen.ai/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["ui/panel.html", "ui/panel.js", "ui/styles.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "backendUrl": "http://localhost:8765",
+  "wsUrl": "ws://localhost:8765/ws",
+  "providers": {
+    "chatgpt": {
+      "url": "https://chatgpt.com/",
+      "enabled": true
+    },
+    "deepseek": {
+      "url": "https://chat.deepseek.com/",
+      "enabled": true
+    },
+    "qwen": {
+      "url": "https://chat.qwen.ai/",
+      "enabled": true
+    },
+    "gemini": {
+      "url": "https://gemini.google.com/app",
+      "enabled": true
+    }
+  },
+  "routing": {
+    "planning": "chatgpt",
+    "coding": "deepseek",
+    "debugging": "qwen",
+    "long_context": "gemini"
+  },
+  "fallbackOrder": ["deepseek", "chatgpt", "gemini", "qwen"],
+  "modelLimits": {
+    "chatgpt": 8000,
+    "deepseek": 8000,
+    "qwen": 8000,
+    "gemini": 32000
+  },
+  "loop": {
+    "maxIterations": 25,
+    "maxRetries": 3,
+    "stepTimeoutMs": 120000,
+    "checkpointIntervalMs": 5000
+  },
+  "approval": {
+    "requireForWrites": true,
+    "requireForCommands": true
+  }
+}

@@ -1,0 +1,616 @@
+You are a senior AI systems architect, browser automation engineer, agent framework designer, and senior full-stack engineer.
+
+Your task is to generate a COMPLETE, RUNNABLE, production-grade autonomous coding agent project.
+
+Project Name:
+
+Browser-Based Multi-AI Autonomous Coding Agent (NO API MODE)
+
+This system should function like a simplified Cursor / Devin / Windsurf-like coding agent using browser-based AI websites instead of APIs.
+
+The project must be modular, secure, extensible, and actually executable.
+
+---
+
+CORE OBJECTIVE
+
+Build an autonomous coding agent that can:
+
+- Work on existing projects
+- Create new projects
+- Understand codebase structure
+- Plan tasks hierarchically
+- Modify files
+- Execute commands
+- Run tests
+- Detect and fix errors automatically
+- Maintain context and memory
+- Use multiple AI providers
+- Show real-time updates
+- Allow human approval
+- Recover after crashes
+
+---
+
+CRITICAL IMPLEMENTATION CLARIFICATIONS
+
+Backend-OS Bridge
+
+Assume the Python FastAPI backend runs LOCALLY:
+
+http://localhost:8765
+
+This backend has direct access to:
+
+- local file system
+- terminal commands
+- active project folders
+
+Architecture:
+
+Chrome Extension
+↕
+Local FastAPI Backend
+↕
+OS / File System / Terminal
+
+All file operations and command execution must happen via backend.
+
+---
+
+Browser DOM Automation Strategy
+
+Adapters MUST use:
+
+1. InputEvent simulation:
+
+new InputEvent("input", { bubbles: true })
+
+2. Clipboard API fallback
+
+3. MutationObserver for response detection
+
+4. spinner / loading detection
+
+5. contenteditable support
+
+Do NOT rely only on ".value=".
+
+---
+
+External File Changes
+
+Backend must use:
+
+watchdog
+
+to monitor active project.
+
+On file change emit WebSocket event:
+
+{
+"type": "file_external_update",
+"payload": {
+"path": ""
+}
+}
+
+---
+
+Crash Recovery
+
+Save state every 5 seconds:
+
+- chrome.storage.local
+- session_memory.json
+
+On startup restore previous state.
+
+---
+
+SYSTEM ARCHITECTURE
+
+Build:
+
+1. Chrome Extension (Manifest v3)
+2. FastAPI Backend
+3. Agent Core Engine
+4. Context Engine
+5. Memory Engine
+6. Testing Engine
+7. Security Engine
+8. Git Engine
+9. Real-time Communication Layer
+10. IDE-like UI
+
+---
+
+PROJECT STRUCTURE
+
+Generate FULL code for:
+
+ai-agent/
+│
+├── extension/
+│   ├── manifest.json
+│   ├── popup.html
+│   ├── popup.js
+│   ├── background.js
+│   ├── content.js
+│   ├── config.json
+│   ├── package.json
+│   │
+│   ├── adapters/
+│   │   ├── baseAdapter.js
+│   │   ├── chatgpt.js
+│   │   ├── deepseek.js
+│   │   ├── qwen.js
+│   │   └── gemini.js
+│   │
+│   ├── core/
+│   │   ├── planner.js
+│   │   ├── executor.js
+│   │   ├── agentLoop.js
+│   │   ├── router.js
+│   │   ├── parser.js
+│   │   ├── memory.js
+│   │   ├── contextEngine.js
+│   │   ├── tokenManager.js
+│   │   ├── diffViewer.js
+│   │   ├── logger.js
+│   │   ├── websocket.js
+│   │   ├── stateMachine.js
+│   │   └── toolRegistry.js
+│   │
+│   └── ui/
+│       ├── panel.html
+│       ├── panel.js
+│       └── styles.css
+│
+├── backend/
+│   ├── server.py
+│   ├── ai_router.py
+│   ├── project_manager.py
+│   ├── file_indexer.py
+│   ├── test_runner.py
+│   ├── git_manager.py
+│   ├── security.py
+│   ├── websocket_manager.py
+│   ├── logger.py
+│   ├── requirements.txt
+│
+├── memory/
+│   ├── long_term_memory.json
+│   ├── session_memory.json
+│   └── error_memory.json
+│
+├── logs/
+├── projects/
+└── README.md
+
+---
+
+COMMUNICATION PROTOCOL
+
+Implement WebSocket endpoint:
+
+/ws
+
+Message schema:
+
+{
+"type": "log | progress | diff | status | error | command_output | file_external_update",
+"payload": {},
+"timestamp": ""
+}
+
+Use WebSocket client in:
+
+- background.js
+- panel.js
+
+Avoid polling where possible.
+
+---
+
+AI ADAPTER SYSTEM
+
+Implement abstract interface:
+
+class AIAdapter {
+async isLoggedIn()
+async sendPrompt(prompt)
+async waitForResponse()
+async detectRateLimit()
+async detectCaptcha()
+async extractResponse()
+}
+
+---
+
+AI PROVIDERS
+
+Support:
+
+- ChatGPT
+- DeepSeek
+- Qwen
+- Gemini
+
+Each adapter must support:
+
+- CSS selectors
+- aria-label selectors
+- data-testid selectors
+- contenteditable selectors
+- InputEvent simulation
+- MutationObserver
+- spinner detection
+- login check
+- captcha/rate limit detection
+- JSON cleanup
+
+---
+
+ROUTING MATRIX
+
+Implement weighted routing:
+
+Planning → ChatGPT
+Simple Coding → DeepSeek
+Debugging → Qwen
+Long Context → Gemini
+
+Fallback order:
+
+DeepSeek → ChatGPT → Gemini → Qwen
+
+---
+
+AGENT STATE MACHINE
+
+States:
+
+IDLE
+PLANNING
+EXECUTING
+WAITING_APPROVAL
+FIXING
+PAUSED
+DONE
+FAILED
+
+Persist state.
+
+---
+
+MULTI-STEP PLANNER
+
+Generate:
+
+{
+"goal": "",
+"tasks": [
+{
+"name": "",
+"steps": [
+{
+"action": "",
+"path": "",
+"content": "",
+"cmd": ""
+}
+]
+}
+]
+}
+
+---
+
+EXECUTION ENGINE
+
+Support actions:
+
+- read_file
+- write_file
+- list_files
+- execute_command
+- install_package
+- run_tests
+- git_commit
+- git_rollback
+
+Each step:
+
+- retry_count
+- timeout
+- logs result
+
+---
+
+LOOP RULES
+
+Implement:
+
+- max_iterations
+- max_retries
+- cancel support
+- pause/resume
+
+Terminate on:
+
+- complete
+- unrecoverable failure
+- user stop
+
+---
+
+CONTEXT ENGINE
+
+Implement:
+
+- file indexing
+- import/dependency extraction
+- function/class extraction
+- summaries
+
+Ignore:
+
+node_modules
+dist
+build
+.git
+
+---
+
+TOKEN MANAGEMENT
+
+Heuristic token estimation.
+
+Use:
+
+chars / 4
+
+Priority:
+
+1 task
+2 relevant files
+3 summaries
+4 recent history
+5 older history
+
+Implement per-model limits.
+
+---
+
+MEMORY ENGINE
+
+Schemas:
+
+long_term_memory.json
+
+{
+"project_meta": {},
+"important_files": [],
+"known_errors": [],
+"known_fixes": []
+}
+
+session_memory.json
+
+{
+"current_goal": "",
+"completed_steps": [],
+"modified_files": []
+}
+
+error_memory.json
+
+[
+{
+"error_hash": "",
+"error_message": "",
+"fix_applied": "",
+"success": true
+}
+]
+
+Normalize stack traces before hashing.
+
+---
+
+TEST ENGINE
+
+Detect:
+
+Node → npm test
+Python → pytest
+Rust → cargo test
+Go → go test
+Java → mvn test / gradle test
+
+Also support:
+
+.agent-test-config.json
+
+Parse:
+
+- failures
+- stack traces
+
+Loop:
+
+code → test → fail → fix → pass
+
+---
+
+DIFF WORKFLOW
+
+Workflow:
+
+1. generate proposed content
+2. create temp file
+3. unified diff
+4. send diff via WebSocket
+5. user accept/reject
+
+Render unified or side-by-side.
+
+---
+
+SECURITY
+
+Use allow-list commands.
+
+Examples:
+
+npm
+node
+pytest
+python
+git
+cargo
+go
+mvn
+gradle
+
+Prevent:
+
+- shell injection
+- path traversal
+- dangerous flags
+
+Restrict working directory.
+
+Timeout 60 sec.
+
+---
+
+GIT ENGINE
+
+Features:
+
+- init repo
+- auto commit before change
+- rollback
+
+Endpoints:
+
+POST /git/commit
+POST /git/rollback
+
+---
+
+BACKEND ENDPOINTS
+
+Implement:
+
+POST /write_file
+POST /read_file
+POST /list_files
+POST /execute
+POST /run_tests
+POST /cancel
+GET /status
+POST /git/commit
+POST /git/rollback
+
+---
+
+FILE WATCHER
+
+Use watchdog.
+
+Push updates via WebSocket.
+
+---
+
+UI REQUIREMENTS
+
+Mini IDE:
+
+- file explorer
+- AI chat
+- logs console
+- diff viewer
+- task tree
+- control buttons
+
+Filters:
+
+INFO
+DEBUG
+ERROR
+
+---
+
+LOGGING
+
+Structured logs:
+
+{
+"timestamp":"",
+"level":"",
+"source":"",
+"task_id":"",
+"message":""
+}
+
+Log rotation.
+
+---
+
+MANIFEST V3
+
+permissions:
+
+storage
+tabs
+scripting
+activeTab
+webNavigation
+
+host_permissions:
+
+https://chat.openai.com/*
+https://chat.deepseek.com/*
+https://gemini.google.com/*
+https://chat.qwen.ai/*
+http://localhost:8765/*
+
+background service_worker
+
+---
+
+PROMPT RULE
+
+Every AI prompt:
+
+Respond ONLY in valid JSON.
+No explanation.
+
+---
+
+README
+
+Include:
+
+- install backend
+- run backend
+- load extension
+- troubleshooting
+- selector update guide
+- contribution guide
+- security warnings
+
+---
+
+OUTPUT RULES
+
+Generate FULL CODE.
+
+No placeholders.
+No TODO.
+No summaries.
+
+Code must run.

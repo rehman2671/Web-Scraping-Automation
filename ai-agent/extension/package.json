@@ -1,0 +1,10 @@
+{
+  "name": "ai-agent-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for the browser-based multi-AI autonomous coding agent.",
+  "private": true,
+  "scripts": {
+    "lint": "echo 'no lint configured'",
+    "package": "zip -r ../ai-agent-extension.zip . -x 'node_modules/*' '*.zip'"
+  }
+}
