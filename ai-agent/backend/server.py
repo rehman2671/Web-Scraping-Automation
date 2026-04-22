@@ -48,12 +48,31 @@ STATE: Dict[str, Any] = {
 }
 RUNNING_PROCS: Dict[str, subprocess.Popen] = {}
 
+# Captured at startup so background threads (watchdog, subprocesses) can
+# schedule coroutines on the FastAPI event loop safely.
+MAIN_LOOP: Optional[asyncio.AbstractEventLoop] = None
+
+
+@app.on_event("startup")
+async def _capture_main_loop() -> None:
+    global MAIN_LOOP
+    MAIN_LOOP = asyncio.get_running_loop()
+
+
+def _schedule(coro) -> None:
+    """Schedule a coroutine on the main loop from any thread."""
+    loop = MAIN_LOOP
+    if loop is None or loop.is_closed():
+        return
+    try:
+        asyncio.run_coroutine_threadsafe(coro, loop)
+    except RuntimeError:
+        pass
+
 
 def _set_state(s: str) -> None:
     STATE["agent_state"] = s
-    asyncio.get_event_loop().call_soon_threadsafe(
-        lambda: asyncio.create_task(ws_manager.broadcast("status", {"state": s})),
-    )
+    _schedule(ws_manager.broadcast("status", {"state": s}))
 
 
 # ============== MODELS ==============
@@ -100,10 +119,7 @@ def _on_external_change(event_type: str, src_path: str) -> None:
         rel = str(Path(src_path).resolve().relative_to(pm.get_active()))
     except Exception:
         rel = src_path
-    asyncio.run_coroutine_threadsafe(
-        ws_manager.broadcast("file_external_update", {"path": rel, "event": event_type}),
-        asyncio.get_event_loop(),
-    )
+    _schedule(ws_manager.broadcast("file_external_update", {"path": rel, "event": event_type}))
 
 
 # ============== HEALTH / STATUS ==============

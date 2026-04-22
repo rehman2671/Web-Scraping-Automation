@@ -301,7 +301,7 @@ async function requestApproval(kind, step, extras = {}) {
   const payload = { id, kind, step, key, previous, ...extras };
   broadcast("approval_request", payload);
   return new Promise((resolve) => {
-    PENDING_APPROVALS.set(id, { resolve, key, kind, step, extras });
+    PENDING_APPROVALS.set(id, { resolve, key, kind, step, extras, payload });
   });
 }
 
@@ -508,7 +508,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const ok = resolveApproval(msg.id, msg.decision);
       sendResponse({ ok });
     } else if (msg.type === "AGENT_LIST_APPROVALS") {
-      sendResponse({ ids: Array.from(PENDING_APPROVALS.keys()) });
+      const items = [];
+      for (const [, v] of PENDING_APPROVALS) if (v.payload) items.push(v.payload);
+      sendResponse({ items });
     } else if (msg.type === "AGENT_RUN_PROMPT") {
       try {
         const out = await routedPrompt(msg.taskKind || "coding", msg.prompt);

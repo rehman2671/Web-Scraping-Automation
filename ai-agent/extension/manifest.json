@@ -45,7 +45,21 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["ui/panel.html", "ui/panel.js", "ui/styles.css"],
+      "resources": [
+        "ui/panel.html",
+        "ui/panel.js",
+        "ui/styles.css",
+        "config.json",
+        "adapters/baseAdapter.js",
+        "adapters/chatgpt.js",
+        "adapters/deepseek.js",
+        "adapters/qwen.js",
+        "adapters/gemini.js",
+        "core/parser.js",
+        "core/diffViewer.js",
+        "core/logger.js",
+        "core/websocket.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

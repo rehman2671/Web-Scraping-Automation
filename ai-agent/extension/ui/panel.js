@@ -216,6 +216,100 @@ function addApproval(payload) {
   if (AUTO_APPROVE) respondApproval(payload.id, "approve");
 }
 
+// ---------- Rejection history ("Forgive" UI) ----------
+async function loadRejectionHistory() {
+  try {
+    const r = await api("/memory/approval_history", undefined, "GET");
+    return Array.isArray(r.data) ? r.data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveRejectionHistory(list) {
+  await api("/memory/save", { file: "approval_history", data: list });
+}
+
+function activeRejections(history) {
+  // Group by key, keep latest decision; surface only those whose latest decision is "reject"
+  const lastByKey = new Map();
+  for (const e of history) {
+    const prev = lastByKey.get(e.key);
+    if (!prev || (e.timestamp || 0) > (prev.timestamp || 0)) lastByKey.set(e.key, e);
+  }
+  const cutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
+  const out = [];
+  for (const e of lastByKey.values()) {
+    if (e.decision === "reject" && (e.timestamp || 0) >= cutoff) out.push(e);
+  }
+  out.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  return out;
+}
+
+function updateRejectionBadge(n) {
+  const b = $("rejection-badge");
+  b.textContent = String(n);
+  b.classList.toggle("hidden", n === 0);
+}
+
+async function renderRejections() {
+  const list = $("rejections-list");
+  list.innerHTML = '<div class="empty">Loading…</div>';
+  const history = await loadRejectionHistory();
+  const active = activeRejections(history);
+  updateRejectionBadge(active.length);
+  if (active.length === 0) {
+    list.innerHTML = '<div class="empty">No active rejections — planner is unconstrained.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  for (const e of active) {
+    const card = document.createElement("div");
+    card.className = "approval-card " + (e.kind || "");
+    const when = e.timestamp ? new Date(e.timestamp).toLocaleString() : "?";
+    const target = e.kind === "write_file"
+      ? `<b>write_file</b> <code>${escapeHTML(e.path || "?")}</code>`
+      : `<b>execute_command</b> <pre class="ap-cmd">$ ${escapeHTML(e.cmd || "?")}</pre>`;
+    card.innerHTML = `
+      <div class="ap-meta">${target}</div>
+      <div class="ap-meta">Rejected at ${escapeHTML(when)} · project <code>${escapeHTML(e.project || "?")}</code></div>
+      <div class="ap-actions">
+        <button class="primary" data-act="forgive">Forgive</button>
+      </div>`;
+    card.querySelector('[data-act="forgive"]').onclick = async () => {
+      const fresh = await loadRejectionHistory();
+      const filtered = fresh.filter((x) => x.key !== e.key);
+      await saveRejectionHistory(filtered);
+      appendChat(`Forgave rejection: ${e.kind} ${e.path || e.cmd || ""}`, "system");
+      renderRejections();
+    };
+    list.appendChild(card);
+  }
+}
+
+$("rej-refresh").addEventListener("click", renderRejections);
+$("rej-clear-all").addEventListener("click", async () => {
+  if (!confirm("Forgive ALL rejection history? Planner will no longer avoid them.")) return;
+  await saveRejectionHistory([]);
+  appendChat("Cleared all rejection history.", "system");
+  renderRejections();
+});
+
+// Re-render rejections every time that tab is opened
+document.querySelectorAll('.tab[data-tab="rejections"]').forEach((b) =>
+  b.addEventListener("click", renderRejections),
+);
+
+// ---------- Restore pending approvals when the panel opens ----------
+async function restorePendingApprovals() {
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "AGENT_LIST_APPROVALS" });
+    const items = (resp && resp.items) || [];
+    for (const p of items) APPROVALS.set(p.id, p);
+    renderApprovals();
+  } catch {}
+}
+
 $("auto-approve").addEventListener("change", (e) => {
   AUTO_APPROVE = e.target.checked;
   if (AUTO_APPROVE) {
@@ -280,4 +374,6 @@ logger.subscribe(appendLog);
   } catch (e) {
     appendChat("Backend offline: " + e.message, "system");
   }
+  restorePendingApprovals();
+  renderRejections();
 })();

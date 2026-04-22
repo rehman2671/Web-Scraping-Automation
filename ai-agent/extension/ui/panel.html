@@ -31,6 +31,7 @@
           <button class="tab" data-tab="plan">Plan</button>
           <button class="tab" data-tab="diff">Diff</button>
           <button class="tab" data-tab="approvals">Approvals <span id="approval-badge" class="badge hidden">0</span></button>
+          <button class="tab" data-tab="rejections">Rejections <span id="rejection-badge" class="badge hidden">0</span></button>
         </div>
         <div class="pane" id="pane-chat">
           <div id="chat-log" class="chat-log"></div>
@@ -62,6 +63,16 @@
           </div>
           <div id="approvals-list" class="approvals-list">
             <div class="empty">No pending approvals.</div>
+          </div>
+        </div>
+        <div class="pane hidden" id="pane-rejections">
+          <div class="approvals-header">
+            <span>Past rejections (last 30 days)</span>
+            <button id="rej-refresh">Refresh</button>
+            <button id="rej-clear-all" class="danger">Forgive all</button>
+          </div>
+          <div id="rejections-list" class="approvals-list">
+            <div class="empty">Loading…</div>
           </div>
         </div>
       </section>
