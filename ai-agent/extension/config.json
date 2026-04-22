@@ -40,7 +40,6 @@
   },
   "approval": {
     "requireForWrites": true,
-    "requireForCommands": true,
-    "batchMode": true
+    "requireForCommands": true
   }
 }

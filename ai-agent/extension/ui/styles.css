@@ -104,14 +104,6 @@ h3 { margin: 6px 0; font-size: 12px; text-transform: uppercase; color: var(--mut
 .ap-prior { padding: 6px 8px; border-radius: 4px; margin-bottom: 8px; font-size: 11px; }
 .ap-prior.info { background: rgba(79, 140, 255, 0.12); color: #b9d0ff; border-left: 3px solid var(--accent); }
 .ap-prior.warn { background: rgba(255, 93, 108, 0.15); color: #ffd6da; border-left: 3px solid var(--err); }
-.ap-prior-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-left: 6px; }
-.ap-prior-tag.info { background: rgba(79, 140, 255, 0.18); color: #b9d0ff; }
-.ap-prior-tag.warn { background: rgba(255, 93, 108, 0.22); color: #ffd6da; }
-.batch-goal { font-size: 11px; color: var(--muted); margin: 4px 0 8px; }
-.batch-item { margin: 6px 0; padding: 4px 6px; background: var(--panel2); border-radius: 4px; }
-.batch-item summary { cursor: pointer; font-size: 12px; padding: 2px 0; }
-.batch-item summary code { color: var(--text); background: var(--panel); padding: 1px 6px; border-radius: 3px; font-family: ui-monospace, monospace; }
-.batch-cmd { margin: 6px 0; padding: 4px 6px; background: var(--panel2); border-radius: 4px; font-size: 12px; }
 
 .log-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; font-size: 11px; color: var(--muted); }
 #log-view { font-family: ui-monospace, monospace; font-size: 11px; max-height: 50%; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
