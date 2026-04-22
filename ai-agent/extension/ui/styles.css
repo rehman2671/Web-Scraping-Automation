@@ -101,6 +101,9 @@ h3 { margin: 6px 0; font-size: 12px; text-transform: uppercase; color: var(--mut
 .ap-cmd { background: var(--panel2); padding: 8px; border-radius: 4px; margin: 0; font-family: ui-monospace, monospace; font-size: 12px; color: var(--warn); white-space: pre-wrap; word-break: break-all; }
 .ap-diff { max-height: 320px; overflow: auto; background: var(--panel2); border-radius: 4px; padding: 4px; }
 .ap-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+.ap-prior { padding: 6px 8px; border-radius: 4px; margin-bottom: 8px; font-size: 11px; }
+.ap-prior.info { background: rgba(79, 140, 255, 0.12); color: #b9d0ff; border-left: 3px solid var(--accent); }
+.ap-prior.warn { background: rgba(255, 93, 108, 0.15); color: #ffd6da; border-left: 3px solid var(--err); }
 
 .log-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; font-size: 11px; color: var(--muted); }
 #log-view { font-family: ui-monospace, monospace; font-size: 11px; max-height: 50%; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }

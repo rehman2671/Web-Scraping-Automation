@@ -167,7 +167,22 @@ function renderApprovals() {
       body = `<div class="ap-meta"><b>Execute command</b></div>
               <pre class="ap-cmd">$ ${escapeHTML(a.cmd)}</pre>`;
     }
+
+    // Prior decisions banner
+    let banner = "";
+    const p = a.previous;
+    if (p && p.total > 0) {
+      const lastWhen = p.last && p.last.timestamp ? new Date(p.last.timestamp).toLocaleString() : "?";
+      const lastDec = (p.last && p.last.decision) || "?";
+      const cls = p.rejected > 0 && lastDec === "reject" ? "warn" : "info";
+      banner = `<div class="ap-prior ${cls}">
+        Seen before — approved ${p.approved}× / rejected ${p.rejected}×.
+        Last: <b>${escapeHTML(lastDec)}</b> at ${escapeHTML(lastWhen)}.
+      </div>`;
+    }
+
     card.innerHTML = `
+      ${banner}
       <div class="ap-body">${body}</div>
       <div class="ap-actions">
         <button class="primary" data-act="approve">Approve</button>

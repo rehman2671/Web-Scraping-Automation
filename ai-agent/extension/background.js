@@ -195,23 +195,87 @@ async function planGoal(goal) {
 }
 
 // ------- Approval queue -------
-const PENDING_APPROVALS = new Map(); // id -> { resolve }
+const PENDING_APPROVALS = new Map(); // id -> { resolve, key, kind, step, extras }
 
-function requestApproval(kind, step, extras = {}) {
+async function _sha256(text) {
+  const buf = new TextEncoder().encode(text || "");
+  const h = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function approvalKey(kind, step, extras = {}) {
+  if (kind === "write_file") {
+    const hash = await _sha256(extras.newContent || "");
+    return `write:${step.path}:${hash.slice(0, 16)}`;
+  }
+  if (kind === "execute_command") {
+    return `cmd:${(step.cmd || "").trim()}`;
+  }
+  return `${kind}:${JSON.stringify(step)}`;
+}
+
+async function loadApprovalHistory() {
+  try {
+    const r = await api("/memory/approval_history", undefined, "GET");
+    return Array.isArray(r.data) ? r.data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function appendApprovalHistory(entry) {
+  try {
+    const list = await loadApprovalHistory();
+    list.push(entry);
+    // cap at 500 most-recent
+    const trimmed = list.slice(-500);
+    await api("/memory/save", { file: "approval_history", data: trimmed });
+  } catch (e) {
+    broadcast("log", { source: "approval", level: "WARN", message: "history save failed: " + e.message });
+  }
+}
+
+async function findPriorDecisions(key) {
+  const list = await loadApprovalHistory();
+  const matches = list.filter((e) => e.key === key);
+  if (matches.length === 0) return null;
+  let approved = 0, rejected = 0, last = null;
+  for (const m of matches) {
+    if (m.decision === "approve") approved += 1;
+    else if (m.decision === "reject") rejected += 1;
+    if (!last || (m.timestamp || 0) > (last.timestamp || 0)) last = m;
+  }
+  return { approved, rejected, total: matches.length, last };
+}
+
+async function requestApproval(kind, step, extras = {}) {
   const id = "ap_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-  const payload = { id, kind, step, ...extras };
+  const key = await approvalKey(kind, step, extras);
+  const previous = await findPriorDecisions(key);
+  const payload = { id, kind, step, key, previous, ...extras };
   broadcast("approval_request", payload);
   return new Promise((resolve) => {
-    PENDING_APPROVALS.set(id, { resolve });
+    PENDING_APPROVALS.set(id, { resolve, key, kind, step, extras });
   });
 }
 
 function resolveApproval(id, decision) {
   const entry = PENDING_APPROVALS.get(id);
   if (!entry) return false;
-  entry.resolve(decision === "approve");
+  const approved = decision === "approve";
+  entry.resolve(approved);
   PENDING_APPROVALS.delete(id);
   broadcast("approval_resolved", { id, decision });
+  // Persist (fire-and-forget)
+  appendApprovalHistory({
+    timestamp: Date.now(),
+    key: entry.key,
+    kind: entry.kind,
+    decision,
+    path: entry.extras.path || null,
+    cmd: entry.extras.cmd || null,
+    project: STATE.project || null,
+  });
   return true;
 }
 

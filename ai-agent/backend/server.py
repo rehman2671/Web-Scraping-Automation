@@ -318,7 +318,7 @@ def git_log_endpoint(n: int = 20):
 
 
 # ============== MEMORY ==============
-ALLOWED_MEMORY = {"long_term_memory", "session_memory", "error_memory"}
+ALLOWED_MEMORY = {"long_term_memory", "session_memory", "error_memory", "approval_history"}
 
 
 @app.get("/memory/{name}")
