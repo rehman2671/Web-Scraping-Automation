@@ -159,7 +159,30 @@ function renderApprovals() {
     const card = document.createElement("div");
     card.className = "approval-card " + a.kind;
     let body = "";
-    if (a.kind === "write_file") {
+    if (a.kind === "plan_batch") {
+      const writes = a.writes || [];
+      const cmds = a.cmds || [];
+      const writesHTML = writes.map((w, i) => {
+        const diff = renderUnifiedHTML(w.oldContent || "", w.newContent || "", w.path);
+        const prior = w.previous && w.previous.total > 0
+          ? `<span class="ap-prior-tag ${w.previous.last && w.previous.last.decision === "reject" ? "warn" : "info"}">prev: ${escapeHTML(w.previous.last.decision)}</span>`
+          : "";
+        return `<details ${i < 3 ? "open" : ""} class="batch-item">
+          <summary><b>${escapeHTML(w.task || "")}</b> — write <code>${escapeHTML(w.path)}</code> ${prior}</summary>
+          <div class="ap-diff">${diff}</div>
+        </details>`;
+      }).join("");
+      const cmdsHTML = cmds.map((c) => {
+        const prior = c.previous && c.previous.total > 0
+          ? `<span class="ap-prior-tag ${c.previous.last && c.previous.last.decision === "reject" ? "warn" : "info"}">prev: ${escapeHTML(c.previous.last.decision)}</span>`
+          : "";
+        return `<div class="batch-cmd"><b>${escapeHTML(c.task || "")}</b> ${prior}<pre class="ap-cmd">$ ${escapeHTML(c.cmd)}</pre></div>`;
+      }).join("");
+      body = `<div class="ap-meta"><b>Approve full plan</b> — ${writes.length} write(s), ${cmds.length} command(s)</div>
+              <div class="batch-goal">Goal: ${escapeHTML(a.goal || "")}</div>
+              ${writesHTML}
+              ${cmdsHTML}`;
+    } else if (a.kind === "write_file") {
       const diffHTML = renderUnifiedHTML(a.oldContent || "", a.newContent || "", a.path);
       body = `<div class="ap-meta"><b>Write file</b> <code>${escapeHTML(a.path)}</code></div>
               <div class="ap-diff">${diffHTML}</div>`;

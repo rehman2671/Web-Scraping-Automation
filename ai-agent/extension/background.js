@@ -16,6 +16,7 @@ const STATE = {
   cancel: false,
   iterations: 0,
   history: [],
+  batchApproved: false,
 };
 
 async function loadConfig() {
@@ -312,20 +313,23 @@ function resolveApproval(id, decision) {
   entry.resolve(approved);
   PENDING_APPROVALS.delete(id);
   broadcast("approval_resolved", { id, decision });
-  // Persist (fire-and-forget)
-  appendApprovalHistory({
-    timestamp: Date.now(),
-    key: entry.key,
-    kind: entry.kind,
-    decision,
-    path: entry.extras.path || null,
-    cmd: entry.extras.cmd || null,
-    project: STATE.project || null,
-  });
+  // Batch approvals persist their own per-item history inside their resolver.
+  if (entry.kind !== "plan_batch") {
+    appendApprovalHistory({
+      timestamp: Date.now(),
+      key: entry.key,
+      kind: entry.kind,
+      decision,
+      path: entry.extras.path || null,
+      cmd: entry.extras.cmd || null,
+      project: STATE.project || null,
+    });
+  }
   return true;
 }
 
 async function gateWriteFile(step) {
+  if (STATE.batchApproved) return true;
   if (!CONFIG.approval || !CONFIG.approval.requireForWrites) return true;
   let oldContent = "";
   try {
@@ -343,8 +347,81 @@ async function gateWriteFile(step) {
 }
 
 async function gateExecuteCommand(step) {
+  if (STATE.batchApproved) return true;
   if (!CONFIG.approval || !CONFIG.approval.requireForCommands) return true;
   return requestApproval("execute_command", step, { cmd: step.cmd });
+}
+
+// ------- Plan-batch approval -------
+async function collectPlanItems(plan) {
+  const writes = [];
+  const cmds = [];
+  for (const task of plan.tasks || []) {
+    for (const step of task.steps || []) {
+      if (step.action === "write_file") {
+        let oldContent = "";
+        try {
+          const r = await api("/read_file", { path: step.path });
+          oldContent = r.content || "";
+        } catch { oldContent = ""; }
+        writes.push({ task: task.name, path: step.path, oldContent, newContent: step.content || "" });
+      } else if (step.action === "execute_command" || step.action === "install_package") {
+        cmds.push({ task: task.name, cmd: step.cmd || "" });
+      }
+    }
+  }
+  return { writes, cmds };
+}
+
+async function requestBatchApproval(plan) {
+  const items = await collectPlanItems(plan);
+  if (items.writes.length === 0 && items.cmds.length === 0) return true;
+
+  // Annotate each item with prior decisions
+  for (const w of items.writes) {
+    const key = await approvalKey("write_file", { path: w.path }, { newContent: w.newContent });
+    w.previous = await findPriorDecisions(key);
+    w.key = key;
+  }
+  for (const c of items.cmds) {
+    const key = await approvalKey("execute_command", { cmd: c.cmd });
+    c.previous = await findPriorDecisions(key);
+    c.key = key;
+  }
+
+  const id = "ap_batch_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+  const payload = { id, kind: "plan_batch", goal: STATE.goal, ...items };
+  broadcast("approval_request", payload);
+  return new Promise((resolve) => {
+    PENDING_APPROVALS.set(id, {
+      resolve: (ok) => {
+        // Persist a history entry per item so the planner learns.
+        const ts = Date.now();
+        const decision = ok ? "approve" : "reject";
+        const batchHistory = [
+          ...items.writes.map((w) => ({
+            timestamp: ts, key: w.key, kind: "write_file", decision,
+            path: w.path, cmd: null, project: STATE.project || null, batch: true,
+          })),
+          ...items.cmds.map((c) => ({
+            timestamp: ts, key: c.key, kind: "execute_command", decision,
+            path: null, cmd: c.cmd, project: STATE.project || null, batch: true,
+          })),
+        ];
+        (async () => {
+          try {
+            const list = await loadApprovalHistory();
+            list.push(...batchHistory);
+            await api("/memory/save", { file: "approval_history", data: list.slice(-500) });
+          } catch (e) {
+            broadcast("log", { source: "approval", level: "WARN", message: "batch history save failed: " + e.message });
+          }
+        })();
+        resolve(ok);
+      },
+      key: "batch", kind: "plan_batch", step: {}, extras: {},
+    });
+  });
 }
 
 async function executeStep(step) {
@@ -401,6 +478,23 @@ async function runAgentLoop() {
     STATE.agentState = "FAILED";
     await api("/state/FAILED").catch(() => {});
     return;
+  }
+
+  // Single batched approval up-front, then execute the whole plan without further prompts.
+  if (cfg.approval && cfg.approval.batchMode) {
+    STATE.agentState = "AWAITING_APPROVAL";
+    await api("/state/AWAITING_APPROVAL").catch(() => {});
+    broadcast("status", { state: "AWAITING_APPROVAL" });
+    const ok = await requestBatchApproval(STATE.plan);
+    if (!ok) {
+      broadcast("log", { source: "approval", level: "WARN", message: "plan batch rejected by user" });
+      STATE.agentState = "PAUSED";
+      await api("/state/PAUSED").catch(() => {});
+      broadcast("status", { state: "PAUSED" });
+      return;
+    }
+    STATE.batchApproved = true;
+    broadcast("log", { source: "approval", message: "plan batch approved — executing without further prompts" });
   }
 
   STATE.agentState = "EXECUTING";
@@ -489,6 +583,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       STATE.plan = null;
       STATE.cursor = { taskIdx: 0, stepIdx: 0 };
       STATE.history = [];
+      STATE.batchApproved = false;
       runAgentLoop();
       sendResponse({ ok: true });
     } else if (msg.type === "AGENT_PAUSE") {
