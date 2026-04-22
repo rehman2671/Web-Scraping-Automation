@@ -182,15 +182,61 @@ function extractJSON(text) {
 }
 
 // ------- Agent loop -------
+async function buildRejectionConstraints() {
+  // Pull recent rejections from approval history so the planner can avoid them.
+  let history = [];
+  try {
+    const r = await api("/memory/approval_history", undefined, "GET");
+    history = Array.isArray(r.data) ? r.data : [];
+  } catch {
+    return { paths: [], cmds: [], lines: [] };
+  }
+  // Bucket: most-recent decision per key wins
+  const lastByKey = new Map();
+  for (const e of history) {
+    const prev = lastByKey.get(e.key);
+    if (!prev || (e.timestamp || 0) > (prev.timestamp || 0)) lastByKey.set(e.key, e);
+  }
+  const recentMs = 1000 * 60 * 60 * 24 * 30; // 30 days
+  const cutoff = Date.now() - recentMs;
+  const rejectedPaths = new Set();
+  const rejectedCmds = new Set();
+  for (const e of lastByKey.values()) {
+    if (e.decision !== "reject") continue;
+    if ((e.timestamp || 0) < cutoff) continue;
+    if (e.kind === "write_file" && e.path) rejectedPaths.add(e.path);
+    if (e.kind === "execute_command" && e.cmd) rejectedCmds.add(e.cmd);
+  }
+  const paths = Array.from(rejectedPaths).slice(0, 50);
+  const cmds = Array.from(rejectedCmds).slice(0, 50);
+  const lines = [];
+  if (paths.length) lines.push("Avoid writing to these files (previously rejected by user): " + JSON.stringify(paths));
+  if (cmds.length) lines.push("Avoid these commands (previously rejected by user): " + JSON.stringify(cmds));
+  if (lines.length) lines.push("If you must touch a rejected target, choose a clearly different path or a safer command.");
+  return { paths, cmds, lines };
+}
+
 async function planGoal(goal) {
-  const prompt = [
+  const constraints = await buildRejectionConstraints();
+  if (constraints.lines.length) {
+    broadcast("log", {
+      source: "planner",
+      level: "INFO",
+      message: `applying ${constraints.paths.length} path + ${constraints.cmds.length} command rejection constraints`,
+    });
+  }
+  const promptParts = [
     "You are an autonomous coding agent planner.",
     "Respond ONLY in valid JSON. No explanation. No markdown.",
     "Schema:",
     `{"goal":"...", "tasks":[{"name":"...", "steps":[{"action":"read_file|write_file|list_files|execute_command|install_package|run_tests|git_commit|git_rollback","path":"","content":"","cmd":""}]}]}`,
-    `Goal: ${goal}`,
-  ].join("\n");
-  const { text } = await routedPrompt("planning", prompt);
+  ];
+  if (constraints.lines.length) {
+    promptParts.push("CONSTRAINTS:");
+    promptParts.push(...constraints.lines);
+  }
+  promptParts.push(`Goal: ${goal}`);
+  const { text } = await routedPrompt("planning", promptParts.join("\n"));
   return extractJSON(text);
 }
 
