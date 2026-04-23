@@ -300,7 +300,7 @@ async def cancel():
 async def run_tests_endpoint():
     cwd = pm.get_active()
     _set_state("EXECUTING")
-    result = await asyncio.get_event_loop().run_in_executor(None, lambda: run_tests(cwd))
+    result = await asyncio.get_running_loop().run_in_executor(None, lambda: run_tests(cwd))
     _set_state("IDLE")
     await ws_manager.broadcast("test_result", result)
     return result

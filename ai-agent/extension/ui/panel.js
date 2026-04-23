@@ -330,6 +330,36 @@ $("chat-send").onclick = async () => {
   } catch (e) { appendChat("Error: " + e.message, "system"); }
 };
 
+$("btn-run-tests").onclick = async () => {
+  const btn = $("btn-run-tests");
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "Running…";
+  appendChat("Running tests…", "system");
+  try {
+    const r = await api("/run_tests");
+    const fw = r.framework || "?";
+    if (!r.ok && r.code === -1 && /no test framework detected/i.test(r.stderr || "")) {
+      appendChat("No test framework detected. Add `.agent-test-config.json` with a `command` field.", "system");
+    } else if (r.ok) {
+      appendChat(`Tests passed (${fw}, exit 0).`, "system");
+    } else {
+      const fails = (r.failures || []).slice(0, 10)
+        .map((f) => `  • ${f.file}${f.test ? "::" + f.test : ""}`).join("\n");
+      appendChat(
+        `Tests FAILED (${fw}, exit ${r.code}). ${(r.failures || []).length} failure(s).` +
+          (fails ? "\n" + fails : ""),
+        "system",
+      );
+    }
+  } catch (e) {
+    appendChat("Test run error: " + e.message, "system");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+};
+
 $("btn-pause").onclick = () => chrome.runtime.sendMessage({ type: "AGENT_PAUSE" });
 $("btn-resume").onclick = () => chrome.runtime.sendMessage({ type: "AGENT_RESUME" });
 $("btn-stop").onclick = async () => {
