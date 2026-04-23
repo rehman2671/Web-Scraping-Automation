@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from .ai_router import get_routing_config
 from .file_indexer import extract_summary, index_project
-from .git_manager import commit_all, init_repo, log as git_log, rollback_to, tag_commit
+from .git_manager import commit_all, init_repo, log as git_log, rollback_to, show_commit, tag_commit
 from .logger import get_logger
 from .project_manager import ProjectManager
 from .security import safe_resolve, validate_command
@@ -337,6 +337,14 @@ async def git_tag_endpoint(req: GitTag):
     if not ok:
         raise HTTPException(500, info)
     return {"ok": True, "sha": info, "name": req.name}
+
+
+@app.get("/git/show")
+def git_show_endpoint(sha: str):
+    ok, info = show_commit(pm.get_active(), sha)
+    if not ok:
+        raise HTTPException(400 if info == "invalid ref" else 500, info)
+    return {"ok": True, "diff": info}
 
 
 @app.get("/git/log")

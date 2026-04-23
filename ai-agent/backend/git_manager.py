@@ -56,6 +56,21 @@ def tag_commit(cwd: Path, name: str, message: str = "") -> Tuple[bool, str]:
     return True, sha.strip()
 
 
+def show_commit(cwd: Path, sha: str) -> Tuple[bool, str]:
+    if not is_repo(cwd):
+        return False, "not a repo"
+    if not sha or not all(c.isalnum() or c in "-_/." for c in sha):
+        return False, "invalid ref"
+    rc, out, err = _run(
+        ["git", "show", "--stat", "-p", "--no-color", "--format=fuller", sha],
+        cwd,
+        timeout=60,
+    )
+    if rc != 0:
+        return False, err or out
+    return True, out[:200000]
+
+
 def log(cwd: Path, n: int = 20) -> Tuple[bool, str]:
     if not is_repo(cwd):
         return False, "not a repo"

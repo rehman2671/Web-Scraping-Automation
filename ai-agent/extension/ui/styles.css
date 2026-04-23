@@ -124,3 +124,14 @@ h3 { margin: 6px 0; font-size: 12px; text-transform: uppercase; color: var(--mut
 .git-tag.tag-autofix { background: var(--ok); color: #fff; }
 .git-tag.tag-other { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
 .git-tag.tag-head { background: var(--accent); color: #fff; }
+
+.git-diff { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.git-diff.hidden { display: none; }
+.diff-pre { margin: 0; padding: 8px; background: var(--panel2); border-radius: 6px; max-height: 420px; overflow: auto; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.45; white-space: pre; }
+.diff-pre .d-add { color: #7ee787; display: block; }
+.diff-pre .d-del { color: #ff7b72; display: block; }
+.diff-pre .d-hunk { color: #79c0ff; display: block; font-weight: 600; }
+.diff-pre .d-fileh { color: #d2a8ff; display: block; font-weight: 600; }
+.diff-pre .d-meta { color: var(--muted); display: block; }
+.diff-pre .d-commit { color: var(--accent); display: block; }
+.diff-pre .d-ctx { color: var(--text); display: block; }

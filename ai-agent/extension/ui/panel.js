@@ -346,6 +346,7 @@ async function renderGit() {
         })
         .join(" ");
       const isHead = idx === 0 && !onlyAutofix;
+      const diffId = "git-diff-" + c.sha;
       card.innerHTML = `
         <div class="ap-meta">
           <code>${escapeHTML(c.sha)}</code> ${tagsHTML}
@@ -353,23 +354,72 @@ async function renderGit() {
         </div>
         <div class="ap-meta">${escapeHTML(c.message)}</div>
         <div class="ap-actions">
+          <button data-show-diff="${escapeHTML(c.sha)}">Show diff</button>
           ${c.tags
             .filter((t) => t.startsWith("agent-autofix"))
             .map((t) => `<button class="primary" data-rollback-tag="${escapeHTML(t)}">Rollback to ${escapeHTML(t)}</button>`)
             .join("")}
           <button data-rollback-sha="${escapeHTML(c.sha)}">Rollback to this commit</button>
-        </div>`;
+        </div>
+        <div class="git-diff hidden" id="${diffId}"></div>`;
       card.querySelectorAll("[data-rollback-tag]").forEach((btn) => {
         btn.onclick = () => doRollback(btn.getAttribute("data-rollback-tag"));
       });
       card.querySelectorAll("[data-rollback-sha]").forEach((btn) => {
         btn.onclick = () => doRollback(btn.getAttribute("data-rollback-sha"));
       });
+      card.querySelectorAll("[data-show-diff]").forEach((btn) => {
+        btn.onclick = () => toggleCommitDiff(btn, c.sha, diffId);
+      });
       list.appendChild(card);
     });
   } catch (e) {
     list.innerHTML = `<div class="empty">Git log unavailable: ${escapeHTML(e.message)}</div>`;
   }
+}
+
+function colorizeUnifiedDiff(text) {
+  const lines = text.split("\n");
+  const out = [];
+  for (const line of lines) {
+    let cls = "d-ctx";
+    if (line.startsWith("diff --git") || line.startsWith("index ")) cls = "d-meta";
+    else if (line.startsWith("+++") || line.startsWith("---")) cls = "d-fileh";
+    else if (line.startsWith("@@")) cls = "d-hunk";
+    else if (line.startsWith("+")) cls = "d-add";
+    else if (line.startsWith("-")) cls = "d-del";
+    else if (/^(commit|Author|AuthorDate|Commit|CommitDate|Date|Merge):/.test(line)) cls = "d-commit";
+    out.push(`<span class="${cls}">${escapeHTML(line)}</span>`);
+  }
+  return out.join("\n");
+}
+
+async function toggleCommitDiff(btn, sha, diffId) {
+  const el = document.getElementById(diffId);
+  if (!el) return;
+  if (!el.classList.contains("hidden") && el.dataset.loaded === "1") {
+    el.classList.add("hidden");
+    btn.textContent = "Show diff";
+    return;
+  }
+  if (el.dataset.loaded !== "1") {
+    el.innerHTML = '<div class="empty">Loading diff…</div>';
+    el.classList.remove("hidden");
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    try {
+      const r = await api(`/git/show?sha=${encodeURIComponent(sha)}`, undefined, "GET");
+      el.innerHTML = `<pre class="diff-pre">${colorizeUnifiedDiff(r.diff || "")}</pre>`;
+      el.dataset.loaded = "1";
+    } catch (e) {
+      el.innerHTML = `<div class="empty">Failed to load diff: ${escapeHTML(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  } else {
+    el.classList.remove("hidden");
+  }
+  btn.textContent = "Hide diff";
 }
 
 async function doRollback(ref) {
