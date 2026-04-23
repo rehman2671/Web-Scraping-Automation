@@ -37,6 +37,7 @@
           <button class="tab" data-tab="diff">Diff</button>
           <button class="tab" data-tab="approvals">Approvals <span id="approval-badge" class="badge hidden">0</span></button>
           <button class="tab" data-tab="rejections">Rejections <span id="rejection-badge" class="badge hidden">0</span></button>
+          <button class="tab" data-tab="git">Git</button>
         </div>
         <div class="pane" id="pane-chat">
           <div id="chat-log" class="chat-log"></div>
@@ -68,6 +69,20 @@
           </div>
           <div id="approvals-list" class="approvals-list">
             <div class="empty">No pending approvals.</div>
+          </div>
+        </div>
+        <div class="pane hidden" id="pane-git">
+          <div class="approvals-header">
+            <span>Commit log</span>
+            <button id="git-refresh">Refresh</button>
+            <button id="git-commit-now">Commit current state</button>
+            <label class="auto-approve-toggle">
+              <input type="checkbox" id="git-only-autofix" />
+              Only show agent-autofix tags
+            </label>
+          </div>
+          <div id="git-list" class="approvals-list">
+            <div class="empty">Loading…</div>
           </div>
         </div>
         <div class="pane hidden" id="pane-rejections">

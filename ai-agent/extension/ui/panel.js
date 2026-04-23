@@ -300,6 +300,108 @@ document.querySelectorAll('.tab[data-tab="rejections"]').forEach((b) =>
   b.addEventListener("click", renderRejections),
 );
 
+// ---------- Git tab ----------
+function parseGitLog(text) {
+  const lines = (text || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const commits = [];
+  for (const line of lines) {
+    // Format: "<sha> (decorations) message" or "<sha> message"
+    const m = line.match(/^([0-9a-f]+)\s+(?:\(([^)]+)\)\s+)?(.*)$/i);
+    if (!m) continue;
+    const [, sha, decor, message] = m;
+    const refs = (decor || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const tags = refs
+      .filter((r) => r.startsWith("tag:"))
+      .map((r) => r.replace(/^tag:\s*/, ""));
+    commits.push({ sha, message, refs, tags });
+  }
+  return commits;
+}
+
+async function renderGit() {
+  const list = $("git-list");
+  list.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const r = await api("/git/log?n=50", undefined, "GET");
+    const commits = parseGitLog(r.log || "");
+    const onlyAutofix = $("git-only-autofix").checked;
+    const filtered = onlyAutofix
+      ? commits.filter((c) => c.tags.some((t) => t.startsWith("agent-autofix")))
+      : commits;
+    if (filtered.length === 0) {
+      list.innerHTML = `<div class="empty">${onlyAutofix ? "No agent-autofix tags yet." : "No commits."}</div>`;
+      return;
+    }
+    list.innerHTML = "";
+    filtered.forEach((c, idx) => {
+      const card = document.createElement("div");
+      card.className = "approval-card";
+      const tagsHTML = c.tags
+        .map((t) => {
+          const cls = t.startsWith("agent-autofix") ? "tag-autofix" : "tag-other";
+          return `<span class="git-tag ${cls}">${escapeHTML(t)}</span>`;
+        })
+        .join(" ");
+      const isHead = idx === 0 && !onlyAutofix;
+      card.innerHTML = `
+        <div class="ap-meta">
+          <code>${escapeHTML(c.sha)}</code> ${tagsHTML}
+          ${isHead ? '<span class="git-tag tag-head">HEAD</span>' : ""}
+        </div>
+        <div class="ap-meta">${escapeHTML(c.message)}</div>
+        <div class="ap-actions">
+          ${c.tags
+            .filter((t) => t.startsWith("agent-autofix"))
+            .map((t) => `<button class="primary" data-rollback-tag="${escapeHTML(t)}">Rollback to ${escapeHTML(t)}</button>`)
+            .join("")}
+          <button data-rollback-sha="${escapeHTML(c.sha)}">Rollback to this commit</button>
+        </div>`;
+      card.querySelectorAll("[data-rollback-tag]").forEach((btn) => {
+        btn.onclick = () => doRollback(btn.getAttribute("data-rollback-tag"));
+      });
+      card.querySelectorAll("[data-rollback-sha]").forEach((btn) => {
+        btn.onclick = () => doRollback(btn.getAttribute("data-rollback-sha"));
+      });
+      list.appendChild(card);
+    });
+  } catch (e) {
+    list.innerHTML = `<div class="empty">Git log unavailable: ${escapeHTML(e.message)}</div>`;
+  }
+}
+
+async function doRollback(ref) {
+  if (!confirm(`Hard-reset working tree to ${ref}? Uncommitted changes will be LOST.`)) return;
+  try {
+    await api("/git/rollback", { sha: ref });
+    appendChat(`Rolled back to ${ref}.`, "system");
+    renderGit();
+    refreshFiles($("cwd").textContent.replace(/^\//, "").replace(/\/$/, ""));
+  } catch (e) {
+    appendChat(`Rollback failed: ${e.message}`, "system");
+  }
+}
+
+$("git-refresh").addEventListener("click", renderGit);
+$("git-only-autofix").addEventListener("change", renderGit);
+$("git-commit-now").addEventListener("click", async () => {
+  const msg = prompt("Commit message:", "manual snapshot");
+  if (!msg) return;
+  try {
+    const r = await api("/git/commit", { message: msg });
+    appendChat(`Committed: ${(r.info || "").slice(0, 7)}`, "system");
+    renderGit();
+  } catch (e) {
+    appendChat(`Commit failed: ${e.message}`, "system");
+  }
+});
+
+document.querySelectorAll('.tab[data-tab="git"]').forEach((b) =>
+  b.addEventListener("click", renderGit),
+);
+
 // ---------- Restore pending approvals when the panel opens ----------
 async function restorePendingApprovals() {
   try {

@@ -119,3 +119,8 @@ h3 { margin: 6px 0; font-size: 12px; text-transform: uppercase; color: var(--mut
 #task-tree li.step { color: var(--text); padding-left: 16px; }
 #task-tree li.step.done { color: var(--ok); }
 #task-tree li.step.fail { color: var(--err); }
+
+.git-tag { display: inline-block; padding: 1px 7px; margin-left: 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: ui-monospace, monospace; }
+.git-tag.tag-autofix { background: var(--ok); color: #fff; }
+.git-tag.tag-other { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+.git-tag.tag-head { background: var(--accent); color: #fff; }

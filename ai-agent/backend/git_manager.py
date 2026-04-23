@@ -59,7 +59,7 @@ def tag_commit(cwd: Path, name: str, message: str = "") -> Tuple[bool, str]:
 def log(cwd: Path, n: int = 20) -> Tuple[bool, str]:
     if not is_repo(cwd):
         return False, "not a repo"
-    rc, out, err = _run(["git", "log", f"-n{n}", "--oneline"], cwd)
+    rc, out, err = _run(["git", "log", f"-n{n}", "--oneline", "--decorate=short", "--no-color"], cwd)
     if rc != 0:
         return False, err or out
     return True, out
