@@ -30,10 +30,10 @@ async function api(path, body, method = "POST") {
   return data;
 }
 
-function appendChat(text, kind = "agent") {
+function appendChat(text, kind = "agent", html = false) {
   const div = document.createElement("div");
   div.className = "msg " + kind;
-  div.textContent = text;
+  if (html) div.innerHTML = text; else div.textContent = text;
   $("chat-log").appendChild(div);
   $("chat-log").scrollTop = $("chat-log").scrollHeight;
 }
@@ -351,6 +351,19 @@ $("btn-run-tests").onclick = async () => {
           (fails ? "\n" + fails : ""),
         "system",
       );
+      if ($("auto-fix-tests").checked) {
+        appendChat("Auto-fix enabled — routing failures to debugger model…", "system");
+        chrome.runtime.sendMessage({ type: "AGENT_AUTOFIX_TESTS", result: r });
+      } else {
+        const id = "autofix_" + Date.now();
+        appendChat(`<button id="${id}" class="primary">Auto-fix these failures</button>`, "system", true);
+        const btnEl = document.getElementById(id);
+        if (btnEl) btnEl.onclick = () => {
+          btnEl.disabled = true;
+          btnEl.textContent = "Routing…";
+          chrome.runtime.sendMessage({ type: "AGENT_AUTOFIX_TESTS", result: r });
+        };
+      }
     }
   } catch (e) {
     appendChat("Test run error: " + e.message, "system");

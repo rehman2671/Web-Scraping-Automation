@@ -511,6 +511,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const items = [];
       for (const [, v] of PENDING_APPROVALS) if (v.payload) items.push(v.payload);
       sendResponse({ items });
+    } else if (msg.type === "AGENT_AUTOFIX_TESTS") {
+      try {
+        const r = msg.result || {};
+        const fails = (r.failures || []).slice(0, 20)
+          .map((f) => `- ${f.file}${f.test ? "::" + f.test : ""} (${f.framework || "?"})`)
+          .join("\n") || "(no parsed failures; inspect output)";
+        const trace = (r.trace || []).slice(0, 25).join("\n");
+        const tail = (r.stderr || r.stdout || "").slice(-4000);
+        const goal = [
+          "Fix the failing test suite.",
+          `Framework: ${r.framework || "?"}, exit code: ${r.code}.`,
+          "Failing tests:",
+          fails,
+          "Stack trace excerpts:",
+          trace || "(none parsed)",
+          "Output tail:",
+          tail,
+          "Plan minimal, surgical edits to source files (NOT the tests) to make them pass. Re-run tests as the final step.",
+        ].join("\n");
+        broadcast("log", { source: "autofix", level: "INFO", message: "Routing failures to debugger model" });
+        STATE.goal = goal;
+        STATE.plan = null;
+        STATE.cursor = { taskIdx: 0, stepIdx: 0 };
+        STATE.history = [];
+        runAgentLoop();
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
     } else if (msg.type === "AGENT_RUN_PROMPT") {
       try {
         const out = await routedPrompt(msg.taskKind || "coding", msg.prompt);
