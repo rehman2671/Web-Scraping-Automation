@@ -45,6 +45,17 @@ def rollback_to(cwd: Path, sha: Optional[str] = None) -> Tuple[bool, str]:
     return True, out.strip()
 
 
+def tag_commit(cwd: Path, name: str, message: str = "") -> Tuple[bool, str]:
+    if not is_repo(cwd):
+        return False, "not a repo"
+    args = ["git", "tag", "-a", name, "-m", message or name]
+    rc, out, err = _run(args, cwd)
+    if rc != 0:
+        return False, err or out
+    rc2, sha, _ = _run(["git", "rev-parse", "HEAD"], cwd)
+    return True, sha.strip()
+
+
 def log(cwd: Path, n: int = 20) -> Tuple[bool, str]:
     if not is_repo(cwd):
         return False, "not a repo"

@@ -45,6 +45,77 @@ function broadcast(type, payload) {
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
+// ------- Auto-fix retry loop state -------
+const AUTOFIX = { active: false, iterations: 0, max: 3, sessionId: null };
+
+function autofixReset() {
+  AUTOFIX.active = false;
+  AUTOFIX.iterations = 0;
+  AUTOFIX.sessionId = null;
+}
+
+async function handleAutofixTestResult(result) {
+  if (!AUTOFIX.active) return;
+  if (result && result.ok) {
+    const name = `agent-autofix-${AUTOFIX.sessionId || Date.now()}`;
+    try {
+      const r = await api("/git/tag", {
+        name,
+        message: `Autofix succeeded after ${AUTOFIX.iterations} iteration(s)`,
+      });
+      broadcast("log", {
+        source: "autofix",
+        level: "INFO",
+        message: `Tests pass — tagged commit as ${r.name} (${(r.sha || "").slice(0, 7)})`,
+      });
+    } catch (e) {
+      broadcast("log", { source: "autofix", level: "WARN", message: `Tag failed: ${e.message}` });
+    }
+    autofixReset();
+    return;
+  }
+  if (AUTOFIX.iterations >= AUTOFIX.max) {
+    broadcast("error", {
+      source: "autofix",
+      message: `Giving up after ${AUTOFIX.iterations}/${AUTOFIX.max} fix attempts. Manual intervention needed.`,
+    });
+    autofixReset();
+    return;
+  }
+  broadcast("log", {
+    source: "autofix",
+    level: "INFO",
+    message: `Iteration ${AUTOFIX.iterations}/${AUTOFIX.max} still failing — re-routing to debugger model`,
+  });
+  startAutofixIteration(result);
+}
+
+function startAutofixIteration(result) {
+  AUTOFIX.active = true;
+  AUTOFIX.iterations += 1;
+  if (!AUTOFIX.sessionId) AUTOFIX.sessionId = Date.now();
+  const fails = (result.failures || []).slice(0, 20)
+    .map((f) => `- ${f.file}${f.test ? "::" + f.test : ""} (${f.framework || "?"})`)
+    .join("\n") || "(no parsed failures; inspect output)";
+  const trace = (result.trace || []).slice(0, 25).join("\n");
+  const tail = (result.stderr || result.stdout || "").slice(-4000);
+  STATE.goal = [
+    `Fix the failing test suite (auto-fix iteration ${AUTOFIX.iterations}/${AUTOFIX.max}).`,
+    `Framework: ${result.framework || "?"}, exit code: ${result.code}.`,
+    "Failing tests:",
+    fails,
+    "Stack trace excerpts:",
+    trace || "(none parsed)",
+    "Output tail:",
+    tail,
+    "Plan minimal, surgical edits to source files (NOT the tests) to make them pass. Re-run tests as the final step.",
+  ].join("\n");
+  STATE.plan = null;
+  STATE.cursor = { taskIdx: 0, stepIdx: 0 };
+  STATE.history = [];
+  runAgentLoop();
+}
+
 // ------- WebSocket -------
 async function connectWS() {
   const cfg = await loadConfig();
@@ -61,7 +132,12 @@ async function connectWS() {
     WS.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
-        broadcast(data.type || "log", data.payload || {});
+        const type = data.type || "log";
+        const payload = data.payload || {};
+        broadcast(type, payload);
+        if (type === "test_result" && AUTOFIX.active) {
+          handleAutofixTestResult(payload);
+        }
       } catch {}
     };
   } catch {
@@ -513,33 +589,26 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ items });
     } else if (msg.type === "AGENT_AUTOFIX_TESTS") {
       try {
-        const r = msg.result || {};
-        const fails = (r.failures || []).slice(0, 20)
-          .map((f) => `- ${f.file}${f.test ? "::" + f.test : ""} (${f.framework || "?"})`)
-          .join("\n") || "(no parsed failures; inspect output)";
-        const trace = (r.trace || []).slice(0, 25).join("\n");
-        const tail = (r.stderr || r.stdout || "").slice(-4000);
-        const goal = [
-          "Fix the failing test suite.",
-          `Framework: ${r.framework || "?"}, exit code: ${r.code}.`,
-          "Failing tests:",
-          fails,
-          "Stack trace excerpts:",
-          trace || "(none parsed)",
-          "Output tail:",
-          tail,
-          "Plan minimal, surgical edits to source files (NOT the tests) to make them pass. Re-run tests as the final step.",
-        ].join("\n");
-        broadcast("log", { source: "autofix", level: "INFO", message: "Routing failures to debugger model" });
-        STATE.goal = goal;
-        STATE.plan = null;
-        STATE.cursor = { taskIdx: 0, stepIdx: 0 };
-        STATE.history = [];
-        runAgentLoop();
-        sendResponse({ ok: true });
+        if (AUTOFIX.active) {
+          sendResponse({ ok: false, error: "Auto-fix already in progress" });
+          return;
+        }
+        autofixReset();
+        broadcast("log", {
+          source: "autofix",
+          level: "INFO",
+          message: `Starting auto-fix loop (cap ${AUTOFIX.max} iterations)`,
+        });
+        startAutofixIteration(msg.result || {});
+        sendResponse({ ok: true, iteration: AUTOFIX.iterations, max: AUTOFIX.max });
       } catch (e) {
+        autofixReset();
         sendResponse({ ok: false, error: e.message });
       }
+    } else if (msg.type === "AGENT_AUTOFIX_CANCEL") {
+      autofixReset();
+      broadcast("log", { source: "autofix", level: "INFO", message: "Auto-fix loop cancelled" });
+      sendResponse({ ok: true });
     } else if (msg.type === "AGENT_RUN_PROMPT") {
       try {
         const out = await routedPrompt(msg.taskKind || "coding", msg.prompt);

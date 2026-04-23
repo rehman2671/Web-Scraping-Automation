@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from .ai_router import get_routing_config
 from .file_indexer import extract_summary, index_project
-from .git_manager import commit_all, init_repo, log as git_log, rollback_to
+from .git_manager import commit_all, init_repo, log as git_log, rollback_to, tag_commit
 from .logger import get_logger
 from .project_manager import ProjectManager
 from .security import safe_resolve, validate_command
@@ -323,6 +323,20 @@ async def git_rollback(req: GitRollback):
     if not ok:
         raise HTTPException(500, info)
     return {"ok": True, "info": info}
+
+
+class GitTag(BaseModel):
+    name: str
+    message: str = ""
+
+
+@app.post("/git/tag")
+async def git_tag_endpoint(req: GitTag):
+    ok, info = tag_commit(pm.get_active(), req.name, req.message)
+    await ws_manager.broadcast("git", {"action": "tag", "ok": ok, "info": info, "name": req.name})
+    if not ok:
+        raise HTTPException(500, info)
+    return {"ok": True, "sha": info, "name": req.name}
 
 
 @app.get("/git/log")
